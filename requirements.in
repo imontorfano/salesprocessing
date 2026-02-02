@@ -1,0 +1,6 @@
+PyYAML
+python-dotenv
+SQLAlchemy
+pandas
+cryptography
+psycopg2-binary

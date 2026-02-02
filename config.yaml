@@ -1,0 +1,37 @@
+target:
+  table: sales_transactions
+  schema:
+    transaction_id: BIGINT
+    customer_id: TEXT
+    customer_id_hash: TEXT
+    product_id: BIGINT
+    quantity: INT
+    sale_date: DATE
+  primary_key:
+    - transaction_id
+  incremental_field: sale_date   # <--- columna configurable para incremental load
+
+#Data Contract origen, columnas obligatorias
+required_source_columns:
+  - transaction_id
+  - customer_id
+  - product_id
+  - quantity
+  - timestamp
+
+#Transformation
+column_mapping:
+  timestamp: sale_date
+
+#Data Quality
+data_quality:
+  quantity:
+    gt: 0
+  transaction_id:
+    not_null: true
+
+security:
+  encrypt_columns:
+    - customer_id       # columna a cifrar con Fernet
+  hash_columns:
+    - customer_id       # columna a hashear con SHA256

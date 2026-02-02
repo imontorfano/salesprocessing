@@ -1,0 +1,18 @@
+# Bytecode de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Entornos virtuales
+venv/
+.env
+
+# Archivos de logs
+*.log
+
+# Archivos temporales de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
