@@ -2,8 +2,9 @@ from sqlalchemy import text
 import logging
 import math
 import os
-import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+import pandas as pd
 
 
 def build_upsert_statement(table_full_name, columns, primary_key):
@@ -26,73 +27,39 @@ def build_upsert_statement(table_full_name, columns, primary_key):
 
 
 def _load_chunk(engine, upsert_sql, records, chunk_id, logger):
-    logger.info(f"Iniciando carga chunk {chunk_id} ({len(records)} registros)")
+    logger.info(f"[LOAD] Iniciando carga chunk {chunk_id} ({len(records)} registros)")
     with engine.begin() as conn:
         conn.execute(text(upsert_sql), records)
-    logger.info(f"Chunk {chunk_id} cargado correctamente")
+    logger.info(f"[LOAD] Chunk {chunk_id} cargado correctamente")
 
 
-def load_data(engine, df, table_name, schema, table_contract, logger=None):
+def load_data(engine, df, table_name, schema, table_contract, logger=None, run_id=None, max_incremental=None):
     if logger is None:
         logger = logging.getLogger(__name__)
 
     if df.empty:
-        logger.info("No hay registros para cargar")
+        logger.info("[LOAD] No hay registros para cargar")
         return
 
     table_full_name = f"{schema}.{table_name}"
     primary_key = table_contract.get("primary_key", [])
-    incremental_col = table_contract.get("incremental_field")
-    reprocess_from = table_contract.get("reprocess_from")
+    last_run_type = "reprocess" if table_contract.get("reprocess_from") else "normal"
 
     # -------------------
-    # 1️⃣ Incremental / Reprocess
-    # -------------------
-    if incremental_col and incremental_col in df.columns:
-        with engine.connect() as conn:
-            if reprocess_from:
-                last_value = pd.to_datetime(reprocess_from).date()
-                logger.info(f"Reprocesando desde {last_value}")
-            else:
-                last_value = conn.execute(
-                    text(f"SELECT MAX({incremental_col}) FROM {table_full_name}")
-                ).scalar()
-                if last_value:
-                    last_value = pd.to_datetime(last_value).date()
-
-        if last_value:
-            df = df[df[incremental_col] > last_value]
-            logger.info(f"Filtrado incremental aplicado: {len(df)} registros nuevos")
-
-    if df.empty:
-        logger.info("No hay registros nuevos para cargar")
-        return
-
-    # -------------------
-    # 2️⃣ SQL Upsert
+    # SQL Upsert
     # -------------------
     columns = list(df.columns)
-    upsert_sql = build_upsert_statement(
-        table_full_name=table_full_name,
-        columns=columns,
-        primary_key=primary_key
-    )
-
-    logger.info(f"Iniciando carga de {len(df)} registros a {table_full_name}")
+    upsert_sql = build_upsert_statement(table_full_name, columns, primary_key)
+    logger.info(f"[LOAD] Iniciando carga de {len(df)} registros a {table_full_name}")
 
     # -------------------
-    # 3️⃣ Chunks + Concurrencia
+    # Chunks + concurrencia
     # -------------------
     chunk_size = int(os.getenv("CHUNKSIZE", 10000))
     max_workers = int(os.getenv("MAX_WORKERS", 1))
-
     num_chunks = math.ceil(len(df) / chunk_size)
-    logger.info(
-        f"Carga en {num_chunks} chunks | chunk_size={chunk_size} | max_workers={max_workers}"
-    )
 
     futures = []
-
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for i in range(num_chunks):
             start = i * chunk_size
@@ -112,6 +79,31 @@ def load_data(engine, df, table_name, schema, table_contract, logger=None):
             )
 
         for future in as_completed(futures):
-            future.result()  # Propaga errores si hay
+            future.result()
 
-    logger.info("Carga finalizada correctamente")
+    logger.info("[LOAD] Carga finalizada correctamente")
+
+    # -------------------
+    # Actualizar tabla de control
+    # -------------------
+    if max_incremental is not None:
+        now = datetime.utcnow()
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO sales.etl_control 
+                    (table_name, last_loaded_timestamp, last_run_id, last_run_type, updated_at)
+                VALUES (:tbl, :ts, :run_id, :run_type, :updated_at)
+                ON CONFLICT (table_name)
+                DO UPDATE SET
+                    last_loaded_timestamp = EXCLUDED.last_loaded_timestamp,
+                    last_run_id = EXCLUDED.last_run_id,
+                    last_run_type = EXCLUDED.last_run_type,
+                    updated_at = EXCLUDED.updated_at
+            """), {
+                "tbl": table_name,
+                "ts": max_incremental,
+                "run_id": run_id or str(pd.Timestamp.utcnow().value),
+                "run_type": last_run_type,
+                "updated_at": now
+            })
+        logger.info(f"[LOAD] Tabla de control sales.etl_control actualizada con timestamp {max_incremental}")

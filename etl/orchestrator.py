@@ -5,8 +5,13 @@ import logging
 from etl.extract import extract_csv
 from etl.transform import transform_data
 from etl.load import load_data
-from etl.utils.data_quality import validate_source_schema, validate_data_rules, DataQualityError
-from etl.utils.schema_manager import reconcile_table_schema
+from etl.utils.data_quality import (
+    validate_source_schema,
+    validate_data_rules,
+    validate_unique_constraints,
+    DataQualityError
+)
+from etl.utils.schema_manager import reconcile_table_schema, reconcile_control_table
 
 
 class SalesETLOrchestrator:
@@ -26,20 +31,52 @@ class SalesETLOrchestrator:
 
         try:
             # ----------------------
-            # 1️⃣ Extract
+            # 4️⃣ Schema Manager - tabla destino
             # ----------------------
-            df = extract_csv(self.config["source"]["path"], self.logger)
+            reconcile_table_schema(
+                engine=self.engine,
+                table_name=self.target_table,
+                schema=self.schema,
+                table_contract=self.table_contract,
+                logger=self.logger
+            )
+
+            # ----------------------
+            # 5️⃣ Schema Manager - tabla de control
+            # ----------------------
+            if "control_table" in self.config:
+                reconcile_control_table(
+                    engine=self.engine,
+                    schema=self.schema,
+                    control_table_config=self.config["control_table"],
+                    logger=self.logger
+                )
+
+            # ----------------------
+            # 1️⃣ Extract con incremental
+            # ----------------------
+            incremental_col_csv = self.table_contract.get("incremental_field")  # 'timestamp' en CSV
+            df, max_incremental = extract_csv(
+                path=self.config["source"]["path"],
+                logger=self.logger,
+                engine=self.engine,
+                table_name=self.target_table,
+                incremental_col=incremental_col_csv,
+                reprocess_from=self.table_contract.get("reprocess_from")
+            )
 
             # ----------------------
             # 2️⃣ Data Quality
             # ----------------------
-            # validate_source_schema ahora devuelve el df filtrado sin columnas extra
             df = validate_source_schema(
                 df,
                 self.config["required_source_columns"],
                 self.logger,
                 allow_extra_columns=True
             )
+
+            if "unique_constraints" in self.config:
+                validate_unique_constraints(df, self.config["unique_constraints"], self.logger)
 
             validate_data_rules(
                 df,
@@ -51,20 +88,10 @@ class SalesETLOrchestrator:
             # 3️⃣ Transform
             # ----------------------
             df = transform_data(df, self.config, self.logger)
+            # Aquí timestamp → sale_date según column_mapping
 
             # ----------------------
-            # 4️⃣ Schema Manager
-            # ----------------------
-            reconcile_table_schema(
-                engine=self.engine,
-                table_name=self.target_table,
-                schema=self.schema,
-                table_contract=self.table_contract,
-                logger=self.logger
-            )
-
-            # ----------------------
-            # 5️⃣ Load
+            # 6️⃣ Load
             # ----------------------
             load_data(
                 engine=self.engine,
@@ -72,7 +99,9 @@ class SalesETLOrchestrator:
                 schema=self.schema,
                 table_name=self.target_table,
                 table_contract=self.table_contract,
-                logger=self.logger
+                logger=self.logger,
+                run_id=self.run_id,
+                max_incremental=max_incremental
             )
 
             self.logger.info(f"ETL run finished successfully: {self.run_id}")

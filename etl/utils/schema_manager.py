@@ -55,3 +55,44 @@ def reconcile_table_schema(engine, table_name, schema, table_contract=None, logg
                 logger.info(f"Columna {col} agregada a {table_full_name}")
 
     logger.info(f"Esquema reconciliado para {table_full_name}")
+
+
+def reconcile_control_table(engine, schema, control_table_config, logger=None):
+    """
+    Crea la tabla de control ETL si no existe.
+
+    Args:
+        engine: SQLAlchemy engine
+        schema: esquema en la DB
+        control_table_config: dict con keys:
+            - name: nombre de la tabla
+            - schema: {col_name: type}
+        logger: instancia de logging
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    table_name = control_table_config["name"]
+    columns = control_table_config["schema"]
+    table_full_name = f"{schema}.{table_name}"
+
+    # separar PK de columnas normales
+    pk_columns = [col for col, typ in columns.items() if "PRIMARY KEY" in typ.upper()]
+    normal_columns = {col: typ.replace("PRIMARY KEY", "").strip() for col, typ in columns.items()}
+
+    # construir definición de columnas
+    columns_def_list = [f"{col} {typ}" for col, typ in normal_columns.items()]
+    if pk_columns:
+        columns_def_list.append(f"PRIMARY KEY ({', '.join(pk_columns)})")
+
+    columns_def = ", ".join(columns_def_list)
+
+    create_table_sql = f"""
+    CREATE TABLE IF NOT EXISTS {table_full_name} (
+        {columns_def}
+    );
+    """
+
+    with engine.begin() as conn:
+        conn.execute(text(create_table_sql))
+        logger.info(f"Tabla de control {table_full_name} creada o verificada.")
