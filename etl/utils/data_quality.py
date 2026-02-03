@@ -26,7 +26,7 @@ def validate_source_schema(df: pd.DataFrame, required_columns, logger=None, allo
     extra_columns = incoming_columns - expected_columns
 
     logger.info(
-        "Validando contrato de esquema de origen",
+        "[DQ] Validando contrato de esquema de origen",
         extra={
             "expected_columns": sorted(expected_columns),
             "incoming_columns": sorted(incoming_columns)
@@ -35,21 +35,21 @@ def validate_source_schema(df: pd.DataFrame, required_columns, logger=None, allo
 
     if missing_columns:
         logger.error(
-            "Faltan columnas obligatorias en el CSV",
+            "[DQ] Faltan columnas obligatorias en el CSV",
             extra={"missing_columns": sorted(missing_columns)}
         )
-        raise DataQualityError(f"Columnas obligatorias faltantes: {missing_columns}")
+        raise DataQualityError(f"[DQ] Columnas obligatorias faltantes: {missing_columns}")
 
     if extra_columns:
         if allow_extra_columns:
             logger.warning(
-                "Se detectaron columnas extra en el CSV y serán ignoradas",
+                "[DQ] Se detectaron columnas extra en el CSV y serán ignoradas",
                 extra={"extra_columns": sorted(extra_columns)}
             )
             df = df[[c for c in df.columns if c in expected_columns]]
         else:
             logger.error(
-                "Schema drift detectado",
+                "[DQ] Schema drift detectado",
                 extra={"extra_columns": sorted(extra_columns)}
             )
             raise DataQualityError(f"Columnas extra detectadas: {extra_columns}")
@@ -63,7 +63,7 @@ def validate_data_rules(df: pd.DataFrame, dq_rules, logger=None):
     if logger is None:
         logger = logging.getLogger(__name__)
 
-    logger.info("Validando reglas de calidad de datos", extra={"rules": dq_rules})
+    logger.info("[DQ] Validando reglas de calidad de datos", extra={"rules": dq_rules})
     violations = []
 
     for column, rules in dq_rules.items():
@@ -95,10 +95,10 @@ def validate_data_rules(df: pd.DataFrame, dq_rules, logger=None):
                 })
 
     if violations:
-        logger.error("Violaciones de reglas de calidad detectadas", extra={"violations": violations})
+        logger.error("[DQ] Violaciones de reglas de calidad detectadas", extra={"violations": violations})
         raise DataQualityError(f"Violaciones de data quality: {violations}")
 
-    logger.info("Reglas de calidad validadas correctamente")
+    logger.info("[DQ] Reglas de calidad validadas correctamente")
     return df
 
 def validate_unique_constraints(df: pd.DataFrame, unique_constraints: list, logger=None):
@@ -121,8 +121,8 @@ def validate_unique_constraints(df: pd.DataFrame, unique_constraints: list, logg
             violations.append({"columns": cols, "num_duplicates": int(duplicates.sum())})
 
     if violations:
-        logger.error("Violaciones de unicidad detectadas", extra={"violations": violations})
-        raise DataQualityError(f"Duplicados detectados: {violations}")
+        logger.error("[DQ] Violaciones de unicidad detectadas", extra={"violations": violations})
+        raise DataQualityError(f"[DQ] Duplicados detectados: {violations}")
 
-    logger.info("No se detectaron duplicados según las constraints configuradas")
+    logger.info("[DQ] No se detectaron duplicados según las constraints configuradas")
     return df

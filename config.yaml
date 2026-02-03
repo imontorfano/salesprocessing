@@ -1,3 +1,4 @@
+#Data Contract Destino.
 target:
   table: sales_transactions
   schema:
@@ -9,7 +10,9 @@ target:
     sale_date: DATE
   primary_key:
     - transaction_id
-  incremental_field: timestamp   # <--- columna configurable para incremental load (tener en cuenta el column_mapping)
+  
+  #Campo incremental segun destino
+  incremental_field: timestamp   # <--- columna configurable para incremental load
 
 #Data Contract origen, columnas obligatorias
 required_source_columns:
