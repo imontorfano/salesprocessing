@@ -271,13 +271,14 @@ Soporta fechas en formato YYYY-MM-DD
 
 
 
-## Next steps
+## Next steps / Suposiciones
 
+- Presupongo que el archivo CSV es un archivo enviado diariamente por lo que valido contra sales_date (fecha) sino tendria que crear una columna (u otra tabla) para guardar el watermark de fecha_datos con timestamp.
 - Según que capa del EDW es: Particionar tablas para insertar datos segun particiones (fecha_datos), indexar columnas que luego sean necesarias hacer queries sobre ellas, agregar columna de fecha_carga para controlar procesamientos.
 - Se podrían procesar los archivos o los chunks en paralelo usando concurrent.futures o multiprocessing.
-- Crear una tabla de control de ejecuciones o guardar los logs de ejecucion en algun sistema para controlar las ejecuciones. Tener una columna (u otra tabla) para guardar el watermark de fecha_datos
+- Hoy en dia permite la carga de un archivo especifico definido en el .env. Se podría aplicar glob + sorted + iteración secuencial para cargar todos los archivos sales_*.csv de manera secuencial, en orden e incremental y paralelo con el punto anterior.
+- Crear una tabla de control de ejecuciones o guardar los logs de ejecucion en algun sistema para controlar las ejecuciones. 
 - Ejecutar el orchestrator con alguna herramienta de Workload managment. 
-- Hoy en dia permite la carga de un archivo especifico definido en el .env. Se podría aplicar glob + sorted + iteración secuencial para cargar todos los archivos sales_*.csv de manera secuencial, en orden e incremental.
 - Agregar mas reglas de calidad del dato.
 - Agregar un codigo salt al hash para mas seguridad.
 - Mover al Cloud: 
