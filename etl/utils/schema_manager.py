@@ -37,7 +37,7 @@ def reconcile_table_schema(engine, table_name, schema, table_contract=None, logg
     with engine.begin() as conn:
         # crear tabla si no existe
         conn.execute(text(create_table_sql))
-        logger.info(f"Tabla {table_full_name} creada o verificada.")
+        logger.info(f"[SCHEMA] Tabla {table_full_name} creada o verificada.")
 
         # obtener columnas existentes
         res = conn.execute(text("""
@@ -52,9 +52,9 @@ def reconcile_table_schema(engine, table_name, schema, table_contract=None, logg
         for col, col_type in columns.items():
             if col not in existing_cols:
                 conn.execute(text(f"ALTER TABLE {table_full_name} ADD COLUMN {col} {col_type}"))
-                logger.info(f"Columna {col} agregada a {table_full_name}")
+                logger.info(f"[SCHEMA] Columna {col} agregada a {table_full_name}")
 
-    logger.info(f"Esquema reconciliado para {table_full_name}")
+    #logger.info(f"Esquema reconciliado para {table_full_name}")
 
 
 def reconcile_control_table(engine, schema, control_table_config, logger=None):
@@ -95,4 +95,4 @@ def reconcile_control_table(engine, schema, control_table_config, logger=None):
 
     with engine.begin() as conn:
         conn.execute(text(create_table_sql))
-        logger.info(f"Tabla de control {table_full_name} creada o verificada.")
+        logger.info(f"[SCHEMA] Tabla de control {table_full_name} creada o verificada.")
