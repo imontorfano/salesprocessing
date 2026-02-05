@@ -23,14 +23,12 @@ args = parser.parse_args()
 # ----------------------------
 load_dotenv()
 
-# Leer YAML
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
 
 # ----------------------------
-# CONSTRUCCIÓN DB URL DESDE ENV
+# CONSTRUCCIÓN DB URL
 # ----------------------------
-
 db_host = os.getenv("DB_HOST")
 db_port = os.getenv("DB_PORT")
 db_user = os.getenv("DB_USER")
@@ -38,14 +36,18 @@ db_password = os.getenv("DB_PASSWORD")
 db_name = os.getenv("DB_NAME")
 db_schema = os.getenv("DB_SCHEMA", "public")
 
-db_url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+db_url = (
+    f"postgresql+psycopg2://"
+    f"{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+)
+
 config["db"] = {
     "url": db_url,
     "schema": db_schema
 }
 
 # ----------------------------
-# CONFIGURACIÓN SOURCE
+# SOURCE
 # ----------------------------
 config["source"] = {
     "path": os.getenv("SOURCE_FILE"),
@@ -53,7 +55,7 @@ config["source"] = {
 }
 
 # ----------------------------
-# CONFIGURACIÓN SECURITY
+# SECURITY
 # ----------------------------
 config.setdefault("security", {})
 config["security"]["encryption_key"] = os.getenv("ENCRYPTION_KEY")
@@ -70,21 +72,33 @@ logging.basicConfig(
 logger = logging.getLogger("sales_etl")
 
 # ----------------------------
-# PASAR REPROCESS_FROM AL ORCHESTRATOR
+# REPROCESS_FROM
 # ----------------------------
 if args.reprocess_from:
     config["target"]["reprocess_from"] = args.reprocess_from
 
 # ----------------------------
-# CREAR CONEXIÓN DB
+# ENGINE (POOL EXPLÍCITO)
 # ----------------------------
-engine = create_engine(db_url)
+engine = create_engine(
+    db_url,
+    pool_size=int(os.getenv("DB_POOL_SIZE", 5)),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", 0)),
+    pool_pre_ping=True
+)
+
+logger.info(
+    "DB Engine created | pool_size=%s | max_overflow=%s",
+    os.getenv("DB_POOL_SIZE"),
+    os.getenv("DB_MAX_OVERFLOW")
+)
 
 # ----------------------------
 # EJECUTAR ETL
 # ----------------------------
-etl = SalesETLOrchestrator(config=config, engine=engine, logger=logger)
+etl = SalesETLOrchestrator(
+    config=config,
+    engine=engine,
+    logger=logger
+)
 etl.run()
-
-# Ejemplo de ejecución:
-# python -m run_etl --reprocess_from 2023-01-01

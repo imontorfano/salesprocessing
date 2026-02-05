@@ -1,3 +1,4 @@
+#Data Contract Destino.
 target:
   table: sales_transactions
   schema:
@@ -9,7 +10,9 @@ target:
     sale_date: DATE
   primary_key:
     - transaction_id
-  incremental_field: sale_date   # <--- columna configurable para incremental load
+  
+  #Campo incremental segun destino
+  incremental_field: timestamp   # <--- columna configurable para incremental load
 
 #Data Contract origen, columnas obligatorias
 required_source_columns:
@@ -30,8 +33,22 @@ data_quality:
   transaction_id:
     not_null: true
 
+unique_constraints:
+  - columns: [transaction_id]       # valida duplicados solo en estas columnas
+
+#Seguridad/Encriptacion
 security:
   encrypt_columns:
     - customer_id       # columna a cifrar con Fernet
   hash_columns:
     - customer_id       # columna a hashear con SHA256
+
+
+control_table:
+  name: etl_control
+  schema:
+    table_name: VARCHAR(255) PRIMARY KEY
+    last_loaded_timestamp: TIMESTAMP
+    last_run_id: VARCHAR(36)
+    last_run_type: VARCHAR(20)
+    updated_at: TIMESTAMP

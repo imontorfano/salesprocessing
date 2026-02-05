@@ -15,10 +15,10 @@ def transform_data(df: pd.DataFrame, config: dict = None, logger: logging.Logger
     if logger is None:
         logger = logging.getLogger(__name__)
 
-    logger.info("Iniciando transformación")
+    logger.info("[TRANSFORM] Iniciando transformación")
 
     if not config:
-        logger.warning("No se pasó config, retornando dataframe original")
+        logger.warning("[TRANSFORM] No se pasó config, retornando dataframe original")
         return df
 
     # -------------------------------
@@ -28,7 +28,7 @@ def transform_data(df: pd.DataFrame, config: dict = None, logger: logging.Logger
     valid_mapping = {k: v for k, v in mapping.items() if k in df.columns}
     if valid_mapping:
         df = df.rename(columns=valid_mapping)
-        logger.info(f"Columnas renombradas: {valid_mapping}")
+        logger.info(f"[TRANSFORM] Columnas renombradas: {valid_mapping}")
 
     # -------------------------------
     # 2️⃣ Convertir tipos según target.schema
@@ -48,7 +48,7 @@ def transform_data(df: pd.DataFrame, config: dict = None, logger: logging.Logger
                     else:
                         df[col] = df[col].astype(str)
                 except Exception as e:
-                    logger.warning(f"No se pudo convertir columna {col} a {col_type}: {e}")
+                    logger.warning(f"[TRANSFORM] No se pudo convertir columna {col} a {col_type}: {e}")
 
     # -------------------------------
     # 3️⃣ Hash determinístico con SHA256 + salt
@@ -62,7 +62,7 @@ def transform_data(df: pd.DataFrame, config: dict = None, logger: logging.Logger
             df[f"{col}_hash"] = df[col].apply(
                 lambda x: hashlib.sha256((hash_salt + str(x)).encode()).hexdigest()
             )
-            logger.info(f"Columna hash generada: {col}_hash")
+            logger.info(f"[TRANSFORM] Columna hash generada: {col}_hash")
 
     # -------------------------------
     # 4️⃣ Cifrado Fernet
@@ -75,12 +75,12 @@ def transform_data(df: pd.DataFrame, config: dict = None, logger: logging.Logger
         for col in encrypt_columns:
             if col in df.columns:
                 df[col] = encryptor.encrypt_series(df[col])
-                logger.info(f"Cifrada columna: {col}")
+                logger.info(f"[TRANSFORM] Cifrada columna: {col}")
 
     # -------------------------------
     # 5️⃣ Verificación final
     # -------------------------------
-    logger.info(f"Columnas finales del DataFrame: {list(df.columns)}")
-    logger.info("Transformación completada")
+    #logger.info(f"Columnas finales del DataFrame: {list(df.columns)}")
+    logger.info("[TRANSFORM] Transformación completada")
 
     return df
